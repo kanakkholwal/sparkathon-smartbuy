@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 
@@ -55,8 +56,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "dairy",
     name: "Dairy & Eggs",
-    color: "bg-blue-50",
-    borderColor: "border-blue-200",
+    color: "bg-blue-50 dark:bg-blue-900",
+    borderColor: "border-blue-200 dark:border-blue-800",
     racks: [
       {
         id: "d1",
@@ -93,8 +94,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "produce",
     name: "Produce",
-    color: "bg-green-50",
-    borderColor: "border-green-200",
+    color: "bg-green-50 dark:bg-green-900",
+    borderColor: "border-green-200 dark:border-green-800",
     racks: [
       {
         id: "p1",
@@ -121,8 +122,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "bakery",
     name: "Bakery",
-    color: "bg-amber-50",
-    borderColor: "border-amber-200",
+    color: "bg-amber-50 dark:bg-amber-900",
+    borderColor: "border-amber-200 dark:border-amber-800",
     racks: [
       {
         id: "b1",
@@ -149,8 +150,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "meat",
     name: "Meat & Seafood",
-    color: "bg-red-50",
-    borderColor: "border-red-200",
+    color: "bg-red-50 dark:bg-red-900",
+    borderColor: "border-red-200 dark:border-red-800",
     racks: [
       {
         id: "m1",
@@ -177,8 +178,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "frozen",
     name: "Frozen Foods",
-    color: "bg-cyan-50",
-    borderColor: "border-cyan-200",
+    color: "bg-cyan-50 dark:bg-cyan-900",
+    borderColor: "border-cyan-200 dark:border-cyan-800",
     racks: [
       {
         id: "f1",
@@ -205,8 +206,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "snacks",
     name: "Snacks & Beverages",
-    color: "bg-purple-50",
-    borderColor: "border-purple-200",
+    color: "bg-purple-50 dark:bg-purple-900",
+    borderColor: "border-purple-200 dark:border-purple-800",
     racks: [
       {
         id: "s1",
@@ -233,8 +234,8 @@ const STORE_SECTIONS: StoreSection[] = [
   {
     id: "checkout",
     name: "Checkout",
-    color: "bg-gray-100",
-    borderColor: "border-gray-300",
+    color: "bg-gray-100 dark:bg-gray-800",
+    borderColor: "border-gray-300 dark:border-gray-700",
     racks: [
       {
         id: "c1",
@@ -675,7 +676,7 @@ export default function SmartBuyDemo() {
                 <CardHeader className="border-b">
                   <div className="flex justify-between items-center">
                     <CardTitle>Store Navigation</CardTitle>
-                    <Badge className="px-3 py-1">
+                    <Badge className="px-3 py-1" variant="secondary">
                       <span className="mr-2">📍</span>
                       {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
                     </Badge>
@@ -720,10 +721,15 @@ export default function SmartBuyDemo() {
                             {section.racks.map(rack => (
                               <motion.div
                                 key={rack.id}
-                                className={`border rounded-md shadow-sm transition-all duration-300 ${highlightedRack === rack.id
-                                  ? 'ring-2 ring-primary ring-offset-2 z-10'
-                                  : 'bg-white'
-                                  } ${rack.inList ? 'border-primary' : 'border-border'}`}
+                                className={cn(
+                                  `border rounded-md shadow-sm transition-all duration-300`,
+                                  {
+                                    'ring-2 ring-primary ring-offset-2 z-10 bg-card scale-101': highlightedRack === rack.id,
+                                    'bg-card': highlightedRack !== rack.id,
+                                    'border-primary': rack.inList,
+                                    'border-border': !rack.inList,
+                                  }
+                                )}
                                 // style={{
                                 //   left: rack.x - (section.racks[0].x - 20),
                                 //   top: rack.y - (section.racks[0].y - 40),
@@ -760,11 +766,44 @@ export default function SmartBuyDemo() {
                       })}
 
                       {/* Aisles and pathways */}
-                      <div className="absolute top-[340px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
+                      {/* <div className="absolute top-[340px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
                       <div className="absolute top-[570px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
                       <div className="absolute left-[180px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
-                      <div className="absolute left-[380px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
+                      <div className="absolute left-[380px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div> */}
+                      {/* generate Aisles and pathways */}
+                      {/* // Replace the existing hardcoded pathways and dots with this code: */}
 
+                      {/* Generated Pathways - Vertical Aisles */}
+                      {[180, 380].map((xPos) => (
+                        <div
+                          key={`v-${xPos}`}
+                          className="absolute w-1 bg-gradient-to-b from-transparent via-muted to-transparent"
+                          style={{ left: `${xPos + 10}px`, top: 0, bottom: 0 }}
+                        />
+                      ))}
+
+                      {/* Generated Pathways - Horizontal Aisles */}
+                      {[340, 570].map((yPos) => (
+                        <div
+                          key={`h-${yPos}`}
+                          className="absolute h-1 bg-gradient-to-r from-transparent via-muted to-transparent"
+                          style={{ top: `${yPos + 10}px`, left: 0, right: 0 }}
+                        />
+                      ))}
+
+                      {/* Pathway Corners */}
+                      {[
+                        { x: 180, y: 340 },
+                        { x: 180, y: 570 },
+                        { x: 380, y: 340 },
+                        { x: 380, y: 570 }
+                      ].map((corner, idx) => (
+                        <div
+                          key={`corner-${idx}`}
+                          className="absolute w-3 h-3 bg-muted rounded-full"
+                          style={{ left: `${corner.x + 5}px`, top: `${corner.y + 5}px` }}
+                        />
+                      ))}
                       {/* Route */}
                       <svg className="absolute inset-0 pointer-events-none">
                         {/* Full route (dashed) */}
@@ -802,12 +841,12 @@ export default function SmartBuyDemo() {
                       <motion.div
                         className="absolute w-10 h-10 bg-primary rounded-full border-2 border-background shadow-lg flex items-center justify-center text-primary-foreground text-xs z-20"
                         style={{
-                          left: `${ROUTE[currentPosition].x - 20}px`,
-                          top: `${ROUTE[currentPosition].y - 20}px`,
+                          left: `${ROUTE[currentPosition].x - 40}px`,
+                          top: `${ROUTE[currentPosition].y - 50}px`,
                         }}
                         animate={{
-                          left: `${ROUTE[currentPosition].x - 20}px`,
-                          top: `${ROUTE[currentPosition].y - 20}px`,
+                          left: `${ROUTE[currentPosition].x - 40}px`,
+                          top: `${ROUTE[currentPosition].y - 50}px`,
                         }}
                         transition={{ duration: 1.5, ease: "easeInOut" }}
                         whileHover={{ scale: 1.1 }}
@@ -888,7 +927,7 @@ export default function SmartBuyDemo() {
                   >
                     <div className="text-center">
                       <div className="text-5xl mb-4">{SECTION_ICONS[showItemPopup.section]}</div>
-                      <h3 className="text-xl font-bold mb-2">Item Collected!</h3>
+                      <h3 className="text-xl font-bold text-foreground mb-2">Item Collected!</h3>
                       <p className="text-2xl font-medium text-primary mb-4">{showItemPopup.item}</p>
                       <div className="text-sm text-muted-foreground">Added to your shopping cart</div>
                     </div>
