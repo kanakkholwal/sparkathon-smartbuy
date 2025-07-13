@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Type definitions
 type StoreSection = {
@@ -42,6 +43,7 @@ type ShoppingItem = {
   collected: boolean;
   section: string;
   rackId: string;
+  photo?: string;
 };
 
 type Recommendation = {
@@ -335,6 +337,10 @@ export default function SmartBuyDemo() {
   const [showItemPopup, setShowItemPopup] = useState<{ item: string, section: string } | null>(null);
   const [highlightedRack, setHighlightedRack] = useState<string | null>(null);
   const [currentStop, setCurrentStop] = useState<number>(0); // Track current stop index
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -343,6 +349,15 @@ export default function SmartBuyDemo() {
   const currentStopPoint = stopPoints[currentStop];
   const [pathLength, setPathLength] = useState(0);
   const pathRef = useRef<SVGPathElement>(null);
+
+  const [basketList, setBasketList] = useState<ShoppingItem[]>([]);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const router = useRouter();
+  const [isPaying, setIsPaying] = useState(false);
+  const [showAddItemCamera, setShowAddItemCamera] = useState(false);
+  const [addItemPhoto, setAddItemPhoto] = useState<string | null>(null);
+  const [hasSpokenList, setHasSpokenList] = useState(false); // New: controls if list is shown
+  const [isListening, setIsListening] = useState(false); // New: controls listening animation
 
   useEffect(() => {
     if (pathRef.current) {
@@ -393,32 +408,6 @@ export default function SmartBuyDemo() {
           setHighlightedRack(ROUTE[nextPosition].rackId!);
         } else {
           setHighlightedRack(null);
-        }
-
-        // Check if we're at an item point
-        const currentPoint = ROUTE[nextPosition];
-        if (currentPoint.item) {
-          // Show item popup
-          setShowItemPopup({
-            item: currentPoint.item,
-            section: currentPoint.section || ""
-          });
-
-          // Hide popup after delay
-          setTimeout(() => {
-            setShowItemPopup(null);
-
-            // Mark item as collected after popup
-            setShoppingList(prev =>
-              prev.map(item =>
-                item.name === currentPoint.item ? { ...item, collected: true } : item
-              )
-            );
-
-            // Show time saved notification
-            setTimeSaved(prev => prev + 2);
-            setTimeout(() => setTimeSaved(prev => prev - 2), 3000);
-          }, 1500);
         }
 
         // Show recommendations at specific points
@@ -482,8 +471,189 @@ export default function SmartBuyDemo() {
   // Calculate progress percentage
   const progress = (currentPosition / (ROUTE.length - 1)) * 100;
 
+  useEffect(() => {
+    if (showItemPopup) {
+      setShowCamera(true);
+      setCapturedPhoto(null);
+    } else {
+      setShowCamera(false);
+      setCapturedPhoto(null);
+    }
+  }, [showItemPopup]);
+
+  // Camera stream management for item collection popup
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    if (showCamera && videoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
+        .then(s => {
+          stream = s;
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+          }
+        })
+        .catch(() => {
+          // fallback to default camera if environment not available
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(s => {
+              stream = s;
+              if (videoRef.current) {
+                videoRef.current.srcObject = s;
+              }
+            });
+        });
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [showCamera]);
+
+  const handleTakePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        context.drawImage(videoRef.current, 0, 0, 320, 240);
+        setCapturedPhoto(canvasRef.current.toDataURL('image/png'));
+        setShowCamera(false);
+      }
+    }
+  };
+
+  const handleContinueAfterPhoto = () => {
+    // Only proceed if a photo was actually taken
+    if (capturedPhoto && showItemPopup) {
+      // Mark item as collected and store the photo
+      setShoppingList(prev =>
+        prev.map(item =>
+          item.name === showItemPopup.item
+            ? { ...item, collected: true, photo: capturedPhoto }
+            : item
+        )
+      );
+      // Show time saved notification
+      setTimeSaved(prev => prev + 2);
+      setTimeout(() => setTimeSaved(prev => prev - 2), 3000);
+    }
+    setShowItemPopup(null);
+    setCapturedPhoto(null);
+    setShowCamera(false);
+    setIsPaused(false); // Allow navigation to continue
+  };
+
+  // Add to basket when item is collected
+  useEffect(() => {
+    const collected = shoppingList.filter(item => item.collected);
+    setBasketList(collected);
+  }, [shoppingList]);
+
+  // Handler for adding a new item ("coke") after photo
+  const handleAddItemAfterPhoto = () => {
+    if (addItemPhoto) {
+      setShoppingList(prev => [
+        ...prev,
+        {
+          id: `coke-${Date.now()}`,
+          name: "coke",
+          collected: true,
+          section: "snacks",
+          rackId: "",
+          photo: addItemPhoto,
+        },
+      ]);
+    }
+    setShowAddItemCamera(false);
+    setAddItemPhoto(null);
+  };
+
+  // Camera stream management for add item popup
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    if (showAddItemCamera && videoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
+        .then(s => {
+          stream = s;
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+          }
+        })
+        .catch(() => {
+          // fallback to default camera if environment not available
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(s => {
+              stream = s;
+              if (videoRef.current) {
+                videoRef.current.srcObject = s;
+              }
+            });
+        });
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [showAddItemCamera]);
+
+  // Handle Speak your List button
+  const handleSpeakList = () => {
+    setIsListening(true);
+    setTimeout(() => {
+      setIsListening(false);
+      setHasSpokenList(true);
+    }, 10000); // 10 seconds
+  };
+
+  // Early return for intro flow
+  if (!hasSpokenList) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        {!isListening ? (
+          <button
+            className="bg-primary text-primary-foreground rounded-lg px-8 py-4 text-2xl font-bold shadow-lg hover:bg-primary/90 transition-all"
+            onClick={handleSpeakList}
+          >
+            <span role="img" aria-label="microphone" className="mr-3">🎤</span>
+            Speak your List
+          </button>
+        ) : (
+          <div className="flex flex-col items-center">
+            <div className="mb-6">
+              <div className="relative w-24 h-24 flex items-center justify-center">
+                <span className="absolute inline-block w-24 h-24 rounded-full bg-primary/20 animate-ping"></span>
+                <span className="inline-block w-16 h-16 rounded-full bg-primary flex items-center justify-center text-4xl text-primary-foreground shadow-lg">
+                </span>
+              </div>
+            </div>
+            <div className="text-xl font-semibold text-primary mb-2">Listening...</div>
+            <div className="text-muted-foreground">Please speak your shopping list</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
+      {/* Self Checkout Button - Bottom Left */}
+      <div className="fixed bottom-6 left-6 z-50">
+        <Button
+          className="rounded-md px-6 py-2 shadow-lg font-semibold text-base"
+          variant="default"
+          onClick={() => setShowCheckout(true)}
+        >
+          Self Checkout
+        </Button>
+      </div>
+      {/* Floating + button */}
+      <button
+        className="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full w-16 h-16 flex items-center justify-center shadow-lg text-3xl hover:bg-primary/90 transition-all"
+        onClick={() => setShowAddItemCamera(true)}
+        aria-label="Add Item"
+      >
+        +
+      </button>
       <div className="max-w-6xl mx-auto">
         <motion.header
           className="mb-6 text-center"
@@ -907,6 +1077,7 @@ export default function SmartBuyDemo() {
                         style={{
                           left: `${ROUTE[currentPosition].x - 40}px`,
                           top: `${ROUTE[currentPosition].y - 50}px`,
+                          cursor: stopPoints.some((point, idx) => idx === currentStop && point.x === ROUTE[currentPosition].x && point.y === ROUTE[currentPosition].y && point.item) ? 'pointer' : 'default',
                         }}
                         animate={{
                           left: `${ROUTE[currentPosition].x - 40}px`,
@@ -914,6 +1085,19 @@ export default function SmartBuyDemo() {
                         }}
                         transition={{ duration: 1.5, ease: "easeInOut" }}
                         whileHover={{ scale: 1.1 }}
+                        onClick={() => {
+                          // Only open popup if at a stop with an item
+                          const stop = stopPoints.find(
+                            (point, idx) =>
+                              idx === currentStop &&
+                              point.x === ROUTE[currentPosition].x &&
+                              point.y === ROUTE[currentPosition].y &&
+                              point.item
+                          );
+                          if (stop && stop.item) {
+                            setShowItemPopup({ item: stop.item, section: stop.section || "" });
+                          }
+                        }}
                       >
                         <motion.div
                           className="absolute inset-0 rounded-full bg-primary/50"
@@ -973,7 +1157,7 @@ export default function SmartBuyDemo() {
               </Card>
             </motion.div>
 
-            {/* Item collection popup */}
+            {/* Item collection popup with camera */}
             <AnimatePresence>
               {showItemPopup && (
                 <motion.div
@@ -990,10 +1174,49 @@ export default function SmartBuyDemo() {
                     exit={{ scale: 0.8, opacity: 0 }}
                   >
                     <div className="text-center">
-                      <div className="text-5xl mb-4">{SECTION_ICONS[showItemPopup.section]}</div>
-                      <h3 className="text-xl font-bold text-foreground mb-2">Item Collected!</h3>
-                      <p className="text-2xl font-medium text-primary mb-4">{showItemPopup.item}</p>
-                      <div className="text-sm text-muted-foreground">Added to your shopping cart</div>
+                      {showCamera && !capturedPhoto && (
+                        <div>
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            width={320}
+                            height={240}
+                            className="rounded-lg border mb-4 mx-auto"
+                          />
+                          <button
+                            className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium"
+                            onClick={handleTakePhoto}
+                          >
+                            Take Photo
+                          </button>
+                          <canvas
+                            ref={canvasRef}
+                            width={320}
+                            height={240}
+                            style={{ display: 'none' }}
+                          />
+                        </div>
+                      )}
+                      {capturedPhoto && (
+                        <div>
+                          <img
+                            src={capturedPhoto}
+                            alt="Collected item"
+                            className="rounded-lg border mb-4 mx-auto"
+                            width={320}
+                            height={240}
+                          />
+                          <h3 className="text-xl font-bold text-foreground mb-2">Item Collected!</h3>
+                          <p className="text-2xl font-medium text-primary mb-4">{showItemPopup.item}</p>
+                          <button
+                            className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
+                            onClick={handleContinueAfterPhoto}
+                          >
+                            Continue
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 </motion.div>
@@ -1085,6 +1308,159 @@ export default function SmartBuyDemo() {
           </div>
         </div>
       </div>
+
+      {/* Basket Modal for Checkout */}
+      <AnimatePresence>
+        {showCheckout && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center z-[100]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowCheckout(false)}></div>
+            <motion.div
+              className="relative bg-card rounded-lg p-6 shadow-lg max-w-md w-full border z-10"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <h2 className="text-2xl font-bold mb-4 text-center">Your Basket</h2>
+              {basketList.length === 0 ? (
+                <div className="text-center text-muted-foreground mb-6">No items collected yet.</div>
+              ) : (
+                <ul className="mb-6 divide-y divide-border">
+                  {basketList.map(item => (
+                    <li key={item.id} className="py-2 flex items-center gap-2">
+                      <span className="mr-2 text-lg">✓</span>
+                      {item.photo && (
+                        <img
+                          src={item.photo}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded border mr-2"
+                        />
+                      )}
+                      <span className="flex-1 font-medium">{item.name}</span>
+                      <span className="text-xs text-muted-foreground ml-2">{item.section.charAt(0).toUpperCase() + item.section.slice(1)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md py-3 text-lg font-semibold mt-2"
+                disabled={basketList.length === 0 || isPaying}
+                onClick={async () => {
+                  setIsPaying(true);
+                  // Assign random price to each item
+                  const basketWithPrices = basketList.map(item => ({
+                    ...item,
+                    price: (Math.random() * 10 + 2).toFixed(2) // $2 - $12
+                  }));
+                  // Store in localStorage
+                  localStorage.setItem('checkout_basket', JSON.stringify(basketWithPrices));
+                  // Store total
+                  const total = basketWithPrices.reduce((sum, item) => sum + parseFloat(item.price), 0);
+                  localStorage.setItem('checkout_total', total.toFixed(2));
+                  // Buffering for 5 seconds
+                  await new Promise(res => setTimeout(res, 5000));
+                  setIsPaying(false);
+                  setShowCheckout(false);
+                  router.push('/checkout-success');
+                }}
+              >
+                {isPaying ? (
+                  <>
+                    <svg className="animate-spin h-6 w-6 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                    Processing Payment...
+                  </>
+                ) : (
+                  <>
+                    <img src="/gpay.svg" alt="GPay" className="h-6 w-6" />
+                    Pay with GPay
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Item Camera Popup */}
+      <AnimatePresence>
+        {showAddItemCamera && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/30"></div>
+            <motion.div
+              className="relative bg-card rounded-lg p-6 shadow-lg max-w-sm border"
+              initial={{ scale: 0.8, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+            >
+              <div className="text-center">
+                {!addItemPhoto && (
+                  <div>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      width={320}
+                      height={240}
+                      className="rounded-lg border mb-4 mx-auto"
+                    />
+                    <button
+                      className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium"
+                      onClick={() => {
+                        if (videoRef.current && canvasRef.current) {
+                          const context = canvasRef.current.getContext('2d');
+                          if (context) {
+                            context.drawImage(videoRef.current, 0, 0, 320, 240);
+                            setAddItemPhoto(canvasRef.current.toDataURL('image/png'));
+                          }
+                        }
+                      }}
+                    >
+                      Take Photo
+                    </button>
+                    <canvas
+                      ref={canvasRef}
+                      width={320}
+                      height={240}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                )}
+                {addItemPhoto && (
+                  <div>
+                    <img
+                      src={addItemPhoto}
+                      alt="New item"
+                      className="rounded-lg border mb-4 mx-auto"
+                      width={320}
+                      height={240}
+                    />
+                    <h3 className="text-xl font-bold text-foreground mb-2">Item Added!</h3>
+                    <p className="text-2xl font-medium text-primary mb-4">coke</p>
+                    <button
+                      className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
+                      onClick={handleAddItemAfterPhoto}
+                    >
+                      Continue
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
