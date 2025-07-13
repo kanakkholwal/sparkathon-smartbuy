@@ -640,11 +640,10 @@ export default function SmartBuyDemo() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-4">
-                  <div className="bg-card rounded-lg border p-4">
-                    <ScrollArea className="h-[800px] w-full">
-                      <div
+                  <div className="bg-card rounded-lg border p-4 overflow-auto">
+                      <ScrollArea
                         ref={mapContainerRef}
-                        className="relative bg-background rounded-lg overflow-hidden"
+                        className="relative bg-background rounded-lg h-[800px] w-full"
                         style={{ width: '600px', height: '750px' }}
                       >
                         {/* Store sections with proper spacing */}
@@ -797,8 +796,7 @@ export default function SmartBuyDemo() {
                             <span className="mr-1">💳</span> Checkout
                           </Badge>
                         </div> */}
-                      </div>
-                    </ScrollArea>
+                      </ScrollArea>
 
                     {/* Progress bar */}
                     <div className="mt-4">
