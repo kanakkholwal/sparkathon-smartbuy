@@ -489,16 +489,26 @@ export default function SmartBuyDemo() {
     }
   }, [showItemPopup]);
 
-  // Camera stream management
+  // Camera stream management for item collection popup
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (showCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: true })
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
         .then(s => {
           stream = s;
           if (videoRef.current) {
             videoRef.current.srcObject = s;
           }
+        })
+        .catch(() => {
+          // fallback to default camera if environment not available
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(s => {
+              stream = s;
+              if (videoRef.current) {
+                videoRef.current.srcObject = s;
+              }
+            });
         });
     }
     return () => {
@@ -569,12 +579,22 @@ export default function SmartBuyDemo() {
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (showAddItemCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: true })
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
         .then(s => {
           stream = s;
           if (videoRef.current) {
             videoRef.current.srcObject = s;
           }
+        })
+        .catch(() => {
+          // fallback to default camera if environment not available
+          navigator.mediaDevices.getUserMedia({ video: true })
+            .then(s => {
+              stream = s;
+              if (videoRef.current) {
+                videoRef.current.srcObject = s;
+              }
+            });
         });
     }
     return () => {
