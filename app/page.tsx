@@ -32,6 +32,7 @@ type RoutePoint = {
   item?: string;
   section?: string;
   rackId?: string;
+  isStop: boolean; // New property to mark stops
 };
 
 type ShoppingItem = {
@@ -286,18 +287,18 @@ const RECOMMENDATIONS: Recommendation[] = [
 ];
 
 const ROUTE: RoutePoint[] = [
-  { x: 300, y: 700, section: "entrance" }, // Entrance (bottom)
-  { x: 410, y: 480, item: "Sparkling Water", section: "snacks", rackId: "s2" }, // Snacks section
-  { x: 410, y: 160, item: "Whole Wheat Bread", section: "bakery", rackId: "b1" }, // Bakery
-  { x: 280, y: 160, section: "aisle" }, // Aisle
-  { x: 210, y: 160, item: "Apples", section: "produce", rackId: "p1" }, // Produce
-  { x: 210, y: 60, section: "produce" }, // Produce
-  { x: 30, y: 60, section: "dairy" }, // Dairy
-  { x: 30, y: 260, item: "Eggs", section: "dairy", rackId: "d3" }, // Dairy
-  { x: 30, y: 480, item: "Chicken Breast", section: "meat", rackId: "m2" }, // Meat
-  { x: 210, y: 480, section: "frozen" }, // Frozen foods
-  { x: 280, y: 480, section: "aisle" }, // Aisle
-  { x: 280, y: 620, section: "checkout" }, // Checkout (bottom)
+  { x: 300, y: 700, section: "entrance", isStop: true },
+  { x: 410, y: 480, item: "Sparkling Water", section: "snacks", rackId: "s2", isStop: true },
+  { x: 410, y: 160, item: "Whole Wheat Bread", section: "bakery", rackId: "b1", isStop: true },
+  { x: 280, y: 160, section: "aisle", isStop: false },
+  { x: 210, y: 160, item: "Apples", section: "produce", rackId: "p1", isStop: true },
+  { x: 210, y: 60, section: "produce", isStop: false },
+  { x: 30, y: 60, section: "dairy", isStop: false },
+  { x: 30, y: 260, item: "Eggs", section: "dairy", rackId: "d3", isStop: true },
+  { x: 30, y: 480, item: "Chicken Breast", section: "meat", rackId: "m2", isStop: true },
+  { x: 210, y: 480, section: "frozen", isStop: false },
+  { x: 280, y: 480, section: "aisle", isStop: false },
+  { x: 280, y: 620, section: "checkout", isStop: true },
 ];
 
 const SECTION_ICONS: Record<string, string> = {
@@ -316,21 +317,36 @@ export default function SmartBuyDemo() {
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(INITIAL_SHOPPING_LIST);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isPaused, setIsPaused] = useState(false); // New state for pause at stops
   const [timeSaved, setTimeSaved] = useState(0);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [assistanceRequested, setAssistanceRequested] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("entrance");
   const [showItemPopup, setShowItemPopup] = useState<{ item: string, section: string } | null>(null);
   const [highlightedRack, setHighlightedRack] = useState<string | null>(null);
+  const [currentStop, setCurrentStop] = useState<number>(0); // Track current stop index
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
+  // Get only stop points from the route
+  const stopPoints = ROUTE.filter(point => point.isStop);
+  const currentStopPoint = stopPoints[currentStop];
+
   // Simulate navigation through the store
   useEffect(() => {
-    if (isNavigating && currentPosition < ROUTE.length - 1) {
+    if (isNavigating && !isPaused && currentPosition < ROUTE.length - 1) {
       const timer = setTimeout(() => {
         const nextPosition = currentPosition + 1;
         setCurrentPosition(nextPosition);
+
+        // Check if we've reached a stop point
+        if (ROUTE[nextPosition].isStop) {
+          setIsPaused(true);
+          setCurrentStop(stopPoints.findIndex(point =>
+            point.x === ROUTE[nextPosition].x &&
+            point.y === ROUTE[nextPosition].y
+          ));
+        }
 
         // Update active section
         if (ROUTE[nextPosition].section) {
@@ -384,15 +400,21 @@ export default function SmartBuyDemo() {
       setActiveSection("checkout");
       setHighlightedRack(null);
     }
-  }, [isNavigating, currentPosition]);
+  }, [isNavigating, currentPosition, isPaused]);
 
   const startNavigation = () => {
     setCurrentPosition(0);
+    setCurrentStop(0);
     setShoppingList(INITIAL_SHOPPING_LIST);
     setRecommendations([]);
     setIsNavigating(true);
+    setIsPaused(false);
     setActiveSection("entrance");
     setHighlightedRack(null);
+  };
+
+  const continueNavigation = () => {
+    setIsPaused(false);
   };
 
   const addRecommendation = (rec: Recommendation) => {
@@ -510,28 +532,46 @@ export default function SmartBuyDemo() {
                     ))}
                   </ul>
 
-                  <div className="mt-6 flex flex-col sm:flex-row sm:space-x-3 space-y-3 sm:space-y-0">
-                    <Button
+                  <div className="mt-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:space-x-3 space-y-3 sm:space-y-0">
+                    {!isNavigating ? (<Button
                       className="w-full"
                       onClick={startNavigation}
                       disabled={isNavigating}
                     >
-                      {isNavigating ? (
-                        <div className="flex items-center">
-                          <motion.div
-                            className="w-4 h-4 rounded-full border-2 border-foreground border-t-transparent mr-2"
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          />
-                          Navigating...
-                        </div>
-                      ) : (
-                        <div className="flex items-center">
-                          <span className="mr-2">🚀</span>
-                          Start Navigation
-                        </div>
-                      )}
-                    </Button>
+
+                      <span className="mr-2">🚀</span>
+                      Start Navigation
+
+                    </Button>) :
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className='w-full space-y-2'
+                      >
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="text-sm text-muted-foreground text-center">
+                          Currently at: {currentStopPoint?.section || "Stop"}
+                        </motion.p>
+                        {isPaused ? (<Button
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          onClick={continueNavigation}
+                        >
+                          <div className="flex items-center">
+                            <span className="mr-2">👉</span>
+                            Continue to Next Stop
+                          </div>
+                        </Button>) : <Button
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                          onClick={() => setIsPaused(true)}
+                        >
+                          <span className="mr-2">⏸️</span>
+                          Pause Navigation
+                        </Button>}
+                      </motion.div>
+                    }
                     <Button
                       variant="outline"
                       className="w-full"
@@ -567,6 +607,8 @@ export default function SmartBuyDemo() {
                       <span>Just saved {timeSaved} minutes with optimized route!</span>
                     </motion.div>
                   )}
+
+
                 </CardContent>
               </Card>
             </motion.div>
@@ -641,178 +683,188 @@ export default function SmartBuyDemo() {
                 </CardHeader>
                 <CardContent className="p-4">
                   <div className="bg-card rounded-lg border p-4 overflow-auto">
-                      <ScrollArea
-                        ref={mapContainerRef}
-                        className="relative bg-background rounded-lg h-[800px] w-full"
-                        style={{ width: '600px', height: '750px' }}
-                      >
-                        {/* Store sections with proper spacing */}
-                        {STORE_SECTIONS.map(section => {
-                          const xs = section.racks.map(r => r.x);
-                          const ys = section.racks.map(r => r.y);
-                          const ws = section.racks.map(r => r.width + r.x);
-                          const hs = section.racks.map(r => r.height + r.y);
-                          const x = Math.min(...xs) - 8; const y = Math.min(...ys) - 8;
-                          const width = Math.max(...ws) - x + 8;
-                          const height = Math.max(...hs) - y + 8;
-                          const listHeight = section.racks.reduce((sum, rack) => sum + rack.height, 0) + (section.racks.length - 1) * 8;
-                          return <div
-                            key={section.id}
-                            className={`absolute border border-dashed rounded-lg ${section.borderColor} ${section.color}`}
-                            style={{ left: x, top: y, width, height }}
-                          >
-                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                              <Badge variant="outline" className="bg-background">
-                                <span className="mr-1">{SECTION_ICONS[section.id]}</span>
-                                {section.name}
-                              </Badge>
-                            </div>
-
-                            <div
-                              className='h-(--listHeight) w-full overflow-y-auto grid grid-cols-1 gap-2 p-2 mt-3 overflow-x-hidden'
-                              style={{ 
-                                "--listHeight": `${listHeight}px`,
-                              } as React.CSSProperties}
-                            >
-                            
-                              {section.racks.map(rack => (
-                                <motion.div
-                                  key={rack.id}
-                                  className={`border rounded-md shadow-sm transition-all duration-300 ${highlightedRack === rack.id
-                                    ? 'ring-2 ring-primary ring-offset-2 z-10'
-                                    : 'bg-white'
-                                    } ${rack.inList ? 'border-primary' : 'border-border'}`}
-                                  // style={{
-                                  //   left: rack.x - (section.racks[0].x - 20),
-                                  //   top: rack.y - (section.racks[0].y - 40),
-                                  //   width: `${rack.width}px`,
-                                  //   height: `${rack.height}px`,
-                                  // }}
-                                  whileHover={{
-                                    scale: 1.02,
-                                    boxShadow: "0px 2px 8px rgba(0,0,0,0.1)"
-                                  }}
-                                >
-                                  <div className="p-2 h-full flex flex-col">
-                                    <div className="test-sm">
-                                      <span className="text-xs font-medium truncate">{rack.name}</span>
-                                    </div>
-                                    <div className="flex-1 grid gap-1 text-sm">
-                                      {rack.items.map((item, index) => (
-                                        <div
-                                          key={index}
-                                          className={`text-[10px] p-1 rounded ${shoppingList.some(i => i.name === item && !i.collected)
-                                            ? 'bg-primary/10 border border-primary/30'
-                                            : 'bg-muted/10'
-                                            }`}
-                                        >
-                                          {item}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            </div>
-                          </div>
-                        })}
-
-                        {/* Aisles and pathways */}
-                        <div className="absolute top-[340px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
-                        <div className="absolute top-[570px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
-                        <div className="absolute left-[180px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
-                        <div className="absolute left-[380px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
-
-                        {/* Route */}
-                        <svg className="absolute inset-0 pointer-events-none">
-                          {/* Full route (dashed) */}
-                          <path
-                            d={generateRoutePath(ROUTE, ROUTE.length - 1)}
-                            fill="none"
-                            stroke="hsl(var(--muted))"
-                            strokeWidth="4"
-                            strokeDasharray="6,6"
-                          />
-
-                          {/* Completed route (solid) */}
-                          <motion.path
-                            d={generateRoutePath(ROUTE, currentPosition)}
-                            fill="none"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth="4"
-                            initial={{ pathLength: 0 }}
-                            animate={{ pathLength: 1 }}
-                            transition={{ duration: 0.5 }}
-                          />
-
-                          {/* Animated moving dot */}
-                          <motion.circle
-                            cx={ROUTE[currentPosition].x}
-                            cy={ROUTE[currentPosition].y}
-                            r="4"
-                            fill="hsl(var(--primary))"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                          />
-                        </svg>
-
-                        {/* Current position */}
-                        <motion.div
-                          className="absolute w-10 h-10 bg-primary rounded-full border-2 border-background shadow-lg flex items-center justify-center text-primary-foreground text-xs z-20"
-                          style={{
-                            left: `${ROUTE[currentPosition].x - 20}px`,
-                            top: `${ROUTE[currentPosition].y - 20}px`,
-                          }}
-                          animate={{
-                            left: `${ROUTE[currentPosition].x - 20}px`,
-                            top: `${ROUTE[currentPosition].y - 20}px`,
-                          }}
-                          transition={{ duration: 1.5, ease: "easeInOut" }}
-                          whileHover={{ scale: 1.1 }}
+                    <ScrollArea
+                      ref={mapContainerRef}
+                      className="relative bg-background rounded-lg h-[800px] w-full"
+                      style={{ width: '600px', height: '750px' }}
+                    >
+                      {/* Store sections with proper spacing */}
+                      {STORE_SECTIONS.map(section => {
+                        const xs = section.racks.map(r => r.x);
+                        const ys = section.racks.map(r => r.y);
+                        const ws = section.racks.map(r => r.width + r.x);
+                        const hs = section.racks.map(r => r.height + r.y);
+                        const x = Math.min(...xs) - 8; const y = Math.min(...ys) - 8;
+                        const width = Math.max(...ws) - x + 8;
+                        const height = Math.max(...hs) - y + 8;
+                        const listHeight = section.racks.reduce((sum, rack) => sum + rack.height, 0) + (section.racks.length - 1) * 8;
+                        return <div
+                          key={section.id}
+                          className={`absolute border border-dashed rounded-lg ${section.borderColor} ${section.color}`}
+                          style={{ left: x, top: y, width, height }}
                         >
-                          <motion.div
-                            className="absolute inset-0 rounded-full bg-primary/50"
-                            animate={{
-                              scale: [1, 1.5, 1],
-                              opacity: [0.7, 0]
-                            }}
-                            transition={{
-                              duration: 1.5,
-                              repeat: Infinity,
-                              repeatType: "loop"
-                            }}
-                          />
-                          <span className="font-bold">You</span>
-                        </motion.div>
+                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <Badge variant="outline" className="bg-background">
+                              <span className="mr-1">{SECTION_ICONS[section.id]}</span>
+                              {section.name}
+                            </Badge>
+                          </div>
 
-                        {/* Key locations */}
-                        <div className="absolute top-[700px] left-[300px]">
-                          <Badge variant="outline" className="bg-background">
-                            <span className="mr-1">🚪</span> Entrance
-                          </Badge>
+                          <div
+                            className='h-(--listHeight) w-full overflow-y-auto grid grid-cols-1 gap-2 p-2 mt-3 overflow-x-hidden'
+                            style={{
+                              "--listHeight": `${listHeight}px`,
+                            } as React.CSSProperties}
+                          >
+
+                            {section.racks.map(rack => (
+                              <motion.div
+                                key={rack.id}
+                                className={`border rounded-md shadow-sm transition-all duration-300 ${highlightedRack === rack.id
+                                  ? 'ring-2 ring-primary ring-offset-2 z-10'
+                                  : 'bg-white'
+                                  } ${rack.inList ? 'border-primary' : 'border-border'}`}
+                                // style={{
+                                //   left: rack.x - (section.racks[0].x - 20),
+                                //   top: rack.y - (section.racks[0].y - 40),
+                                //   width: `${rack.width}px`,
+                                //   height: `${rack.height}px`,
+                                // }}
+                                whileHover={{
+                                  scale: 1.02,
+                                  boxShadow: "0px 2px 8px rgba(0,0,0,0.1)"
+                                }}
+                              >
+                                <div className="p-2 h-full flex flex-col">
+                                  <div className="test-sm">
+                                    <span className="text-xs font-medium truncate">{rack.name}</span>
+                                  </div>
+                                  <div className="flex-1 grid gap-1 text-sm">
+                                    {rack.items.map((item, index) => (
+                                      <div
+                                        key={index}
+                                        className={`text-[10px] p-1 rounded ${shoppingList.some(i => i.name === item && !i.collected)
+                                          ? 'bg-primary/10 border border-primary/30'
+                                          : 'bg-muted/10'
+                                          }`}
+                                      >
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
                         </div>
-                        {/* <div className="absolute top-[620px] left-[240px]">
-                          <Badge variant="outline" className="bg-background">
-                            <span className="mr-1">💳</span> Checkout
-                          </Badge>
-                        </div> */}
-                      </ScrollArea>
+                      })}
+
+                      {/* Aisles and pathways */}
+                      <div className="absolute top-[340px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
+                      <div className="absolute top-[570px] left-0 right-0 h-1 bg-gradient-to-r from-transparent via-muted to-transparent"></div>
+                      <div className="absolute left-[180px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
+                      <div className="absolute left-[380px] top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-muted to-transparent"></div>
+
+                      {/* Route */}
+                      <svg className="absolute inset-0 pointer-events-none">
+                        {/* Full route (dashed) */}
+                        <path
+                          d={generateRoutePath(ROUTE, ROUTE.length - 1)}
+                          fill="none"
+                          stroke="hsl(var(--muted))"
+                          strokeWidth="4"
+                          strokeDasharray="6,6"
+                        />
+
+                        {/* Completed route (solid) */}
+                        <motion.path
+                          d={generateRoutePath(ROUTE, currentPosition)}
+                          fill="none"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth="4"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.5 }}
+                        />
+
+                        {/* Animated moving dot */}
+                        <motion.circle
+                          cx={ROUTE[currentPosition].x}
+                          cy={ROUTE[currentPosition].y}
+                          r="4"
+                          fill="hsl(var(--primary))"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        />
+                      </svg>
+
+                      {/* Current position */}
+                      <motion.div
+                        className="absolute w-10 h-10 bg-primary rounded-full border-2 border-background shadow-lg flex items-center justify-center text-primary-foreground text-xs z-20"
+                        style={{
+                          left: `${ROUTE[currentPosition].x - 20}px`,
+                          top: `${ROUTE[currentPosition].y - 20}px`,
+                        }}
+                        animate={{
+                          left: `${ROUTE[currentPosition].x - 20}px`,
+                          top: `${ROUTE[currentPosition].y - 20}px`,
+                        }}
+                        transition={{ duration: 1.5, ease: "easeInOut" }}
+                        whileHover={{ scale: 1.1 }}
+                      >
+                        <motion.div
+                          className="absolute inset-0 rounded-full bg-primary/50"
+                          animate={{
+                            scale: [1, 1.5, 1],
+                            opacity: [0.7, 0]
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            repeatType: "loop"
+                          }}
+                        />
+                        <span className="font-bold">You</span>
+                      </motion.div>
+
+                      {/* Stop markers */}
+                      {stopPoints.map((point, index) => (
+                        <div
+                          key={index}
+                          className="absolute w-6 h-6 rounded-full bg-yellow-400 border-2 border-background flex items-center justify-center text-xs font-bold z-10"
+                          style={{
+                            left: `${point.x - 12}px`,
+                            top: `${point.y - 12}px`,
+                          }}
+                        >
+                          {index + 1}
+                        </div>
+                      ))}
+
+                      {/* Key locations */}
+                      <div className="absolute top-[700px] left-[300px]">
+                        <Badge variant="outline" className="bg-background">
+                          <span className="mr-1">🚪</span> Entrance
+                        </Badge>
+                      </div>
+
+                    </ScrollArea>
 
                     {/* Progress bar */}
-                    <div className="mt-4">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Route Progress</span>
-                        <span className="text-primary font-medium">{Math.round(progress)}%</span>
-                      </div>
-                      <motion.div
-                        className="h-2 bg-muted rounded-full overflow-hidden"
-                        initial={{ width: "0%" }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 1.5 }}
-                      >
-                        <div className="h-full bg-primary rounded-full"></div>
-                      </motion.div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-muted-foreground">Route Progress</span>
+                      <span className="text-primary font-medium">{Math.round(progress)}%</span>
                     </div>
+                    <motion.div
+                      className="h-2 bg-muted rounded-full overflow-hidden"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 1.5 }}
+                    >
+                      <div className="h-full bg-primary rounded-full"></div>
+                    </motion.div>
                   </div>
                 </CardContent>
               </Card>
