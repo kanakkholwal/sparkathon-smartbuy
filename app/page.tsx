@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 
 // Type definitions
@@ -298,8 +298,8 @@ const ROUTE: RoutePoint[] = [
   { x: 30, y: 260, item: "Eggs", section: "dairy", rackId: "d3", isStop: true },
   { x: 30, y: 480, item: "Chicken Breast", section: "meat", rackId: "m2", isStop: true },
   { x: 210, y: 480, section: "frozen", isStop: false },
-  { x: 280, y: 480, section: "aisle", isStop: false },
-  { x: 280, y: 620, section: "checkout", isStop: true },
+  { x: 280, y: 480, section: "aisle", isStop: true },
+  // { x: 280, y: 620, section: "checkout", isStop: true },
 ];
 
 const SECTION_ICONS: Record<string, string> = {
@@ -312,6 +312,15 @@ const SECTION_ICONS: Record<string, string> = {
   checkout: "💳",
   entrance: "🚪",
   aisle: "🛒"
+};
+
+const getArrowRotation = (currentIndex: number) => {
+  if (currentIndex >= ROUTE.length - 1) return 0;
+  const currentPoint = ROUTE[currentIndex];
+  const nextPoint = ROUTE[currentIndex + 1];
+  const dx = nextPoint.x - currentPoint.x;
+  const dy = nextPoint.y - currentPoint.y;
+  return Math.atan2(dy, dx) * (180 / Math.PI);
 };
 
 export default function SmartBuyDemo() {
@@ -332,7 +341,32 @@ export default function SmartBuyDemo() {
   // Get only stop points from the route
   const stopPoints = ROUTE.filter(point => point.isStop);
   const currentStopPoint = stopPoints[currentStop];
+  const [pathLength, setPathLength] = useState(0);
+  const pathRef = useRef<SVGPathElement>(null);
 
+  useEffect(() => {
+    if (pathRef.current) {
+      // Measure the actual path length
+      const length = pathRef.current.getTotalLength();
+      setPathLength(length);
+    }
+  }, []);
+
+  // Calculate progress for the path animation
+
+  const progressMotion = useMotionValue(currentPosition / (ROUTE.length - 1));
+  useEffect(() => {
+    progressMotion.set(currentPosition / (ROUTE.length - 1));
+  }, [currentPosition, progressMotion]);
+
+  const pathProgress = useTransform(progressMotion, [0, 1], [0, 1]);
+
+  // Animate the stroke-dashoffset based on progress
+  const pathOffset = useTransform(
+    pathProgress,
+    [0, 1],
+    [pathLength, 0]
+  );
   // Simulate navigation through the store
   useEffect(() => {
     if (isNavigating && !isPaused && currentPosition < ROUTE.length - 1) {
@@ -440,7 +474,7 @@ export default function SmartBuyDemo() {
 
     let path = `M ${points[0].x} ${points[0].y}`;
     for (let i = 1; i <= upToIndex; i++) {
-      path += ` L ${points[i].x} ${points[i].y}`;
+      path += ` L ${points[i].x - 20} ${points[i].y - 20}`;
     }
     return path;
   };
@@ -805,36 +839,66 @@ export default function SmartBuyDemo() {
                         />
                       ))}
                       {/* Route */}
-                      <svg className="absolute inset-0 pointer-events-none">
+                      {/* Route */}
+                      <svg className="absolute inset-0 pointer-events-none w-full h-full">
                         {/* Full route (dashed) */}
                         <path
                           d={generateRoutePath(ROUTE, ROUTE.length - 1)}
                           fill="none"
-                          stroke="hsl(var(--muted))"
+                          stroke="var(--muted)"
                           strokeWidth="4"
                           strokeDasharray="6,6"
                         />
 
                         {/* Completed route (solid) */}
                         <motion.path
-                          d={generateRoutePath(ROUTE, currentPosition)}
+                          ref={pathRef}
+                          d={generateRoutePath(ROUTE, ROUTE.length - 1)}
                           fill="none"
-                          stroke="hsl(var(--primary))"
+                          // stroke="var(--primary)/40"
+                          className="stroke-yellow-200 z-50"
                           strokeWidth="4"
-                          initial={{ pathLength: 0 }}
-                          animate={{ pathLength: 1 }}
-                          transition={{ duration: 0.5 }}
+                          strokeDasharray={pathLength}
+                          strokeDashoffset={pathOffset}
+                          initial={{
+                            strokeDasharray: pathLength,
+                            strokeDashoffset: pathLength
+                          }}
                         />
 
-                        {/* Animated moving dot */}
-                        <motion.circle
-                          cx={ROUTE[currentPosition].x}
-                          cy={ROUTE[currentPosition].y}
-                          r="4"
-                          fill="hsl(var(--primary))"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        />
+                        {/* Directional Arrow */}
+                        {currentPosition > 0 && (
+                          <motion.g
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                            style={{
+                              transformOrigin: "center",
+                              transformBox: "fill-box",
+                            }}
+                          >
+                            <motion.g
+                              animate={{
+                                x: ROUTE[currentPosition].x - 20,
+                                y: ROUTE[currentPosition].y - 20,
+                                rotate: getArrowRotation(currentPosition),
+                              }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 300,
+                                damping: 20
+                              }}
+                            >
+                              <path
+                                d="M -15 0 L 0 0 M 0 0 L -8 -8 M 0 0 L -8 8"
+                                // stroke="var(--tertiary)"
+                                className='stroke-primary z-100'
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                              />
+                            </motion.g>
+                          </motion.g>
+                        )}
                       </svg>
 
                       {/* Current position */}
