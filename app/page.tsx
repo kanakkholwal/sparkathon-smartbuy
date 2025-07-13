@@ -356,6 +356,8 @@ export default function SmartBuyDemo() {
   const [isPaying, setIsPaying] = useState(false);
   const [showAddItemCamera, setShowAddItemCamera] = useState(false);
   const [addItemPhoto, setAddItemPhoto] = useState<string | null>(null);
+  const [hasSpokenList, setHasSpokenList] = useState(false); // New: controls if list is shown
+  const [isListening, setIsListening] = useState(false); // New: controls listening animation
 
   useEffect(() => {
     if (pathRef.current) {
@@ -593,6 +595,44 @@ export default function SmartBuyDemo() {
       }
     };
   }, [showAddItemCamera]);
+
+  // Handle Speak your List button
+  const handleSpeakList = () => {
+    setIsListening(true);
+    setTimeout(() => {
+      setIsListening(false);
+      setHasSpokenList(true);
+    }, 10000); // 10 seconds
+  };
+
+  // Early return for intro flow
+  if (!hasSpokenList) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        {!isListening ? (
+          <button
+            className="bg-primary text-primary-foreground rounded-lg px-8 py-4 text-2xl font-bold shadow-lg hover:bg-primary/90 transition-all"
+            onClick={handleSpeakList}
+          >
+            <span role="img" aria-label="microphone" className="mr-3">🎤</span>
+            Speak your List
+          </button>
+        ) : (
+          <div className="flex flex-col items-center">
+            <div className="mb-6">
+              <div className="relative w-24 h-24 flex items-center justify-center">
+                <span className="absolute inline-block w-24 h-24 rounded-full bg-primary/20 animate-ping"></span>
+                <span className="inline-block w-16 h-16 rounded-full bg-primary flex items-center justify-center text-4xl text-primary-foreground shadow-lg">
+                </span>
+              </div>
+            </div>
+            <div className="text-xl font-semibold text-primary mb-2">Listening...</div>
+            <div className="text-muted-foreground">Please speak your shopping list</div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
