@@ -408,16 +408,6 @@ export default function SmartBuyDemo() {
           setHighlightedRack(null);
         }
 
-        // Check if we're at an item point
-        const currentPoint = ROUTE[nextPosition];
-        if (currentPoint.item) {
-          // Show item popup
-          setShowItemPopup({
-            item: currentPoint.item,
-            section: currentPoint.section || ""
-          });
-        }
-
         // Show recommendations at specific points
         if (nextPosition === 1) {
           setRecommendations([RECOMMENDATIONS[2]]); // Sparkling water
@@ -606,8 +596,8 @@ export default function SmartBuyDemo() {
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6">
-      {/* Self Checkout Button - Top Right */}
-      <div className="fixed top-4 right-4 z-50">
+      {/* Self Checkout Button - Bottom Left */}
+      <div className="fixed bottom-6 left-6 z-50">
         <Button
           className="rounded-md px-6 py-2 shadow-lg font-semibold text-base"
           variant="default"
@@ -1047,6 +1037,7 @@ export default function SmartBuyDemo() {
                         style={{
                           left: `${ROUTE[currentPosition].x - 40}px`,
                           top: `${ROUTE[currentPosition].y - 50}px`,
+                          cursor: stopPoints.some((point, idx) => idx === currentStop && point.x === ROUTE[currentPosition].x && point.y === ROUTE[currentPosition].y && point.item) ? 'pointer' : 'default',
                         }}
                         animate={{
                           left: `${ROUTE[currentPosition].x - 40}px`,
@@ -1054,6 +1045,19 @@ export default function SmartBuyDemo() {
                         }}
                         transition={{ duration: 1.5, ease: "easeInOut" }}
                         whileHover={{ scale: 1.1 }}
+                        onClick={() => {
+                          // Only open popup if at a stop with an item
+                          const stop = stopPoints.find(
+                            (point, idx) =>
+                              idx === currentStop &&
+                              point.x === ROUTE[currentPosition].x &&
+                              point.y === ROUTE[currentPosition].y &&
+                              point.item
+                          );
+                          if (stop && stop.item) {
+                            setShowItemPopup({ item: stop.item, section: stop.section || "" });
+                          }
+                        }}
                       >
                         <motion.div
                           className="absolute inset-0 rounded-full bg-primary/50"
